@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="销售工作台">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>📊</text></svg>">
-  <title>销售工作台</title>
+  <meta name="apple-mobile-web-app-title" content="One77-饰品">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>💎</text></svg>">
+  <title>One77-饰品</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f2f5f9; color: #1e2b3c; padding-bottom: 70px; }
@@ -37,19 +37,11 @@
   </style>
 </head>
 <body>
-  <div class="header">📊 销售工作台</div>
+  <!-- 修改标题 -->
+  <div class="header">💎 One77-饰品</div>
 
   <!-- 首页为销售页面 -->
   <div id="tab-sales" class="page active">
-    <div class="card" style="background: #eef4f8;">
-      <h3>📅 今日小结</h3>
-      <div class="grid-3">
-        <div><div class="stat-label">今日销售</div><div class="stat-num" style="font-size: 24px;" id="todayRevenue">¥0</div></div>
-        <div><div class="stat-label">今日成本</div><div class="stat-num" style="font-size: 24px;" id="todayCost">¥0</div></div>
-        <div><div class="stat-label">今日利润</div><div class="stat-num" style="font-size: 24px;" id="todayProfit">¥0</div></div>
-      </div>
-    </div>
-
     <div class="card">
       <h3>🧾 销售记账</h3>
       <div class="row">
@@ -65,7 +57,7 @@
     </div>
   </div>
 
-  <!-- 货品页面（增加了搜索框） -->
+  <!-- 货品页面 -->
   <div id="tab-products" class="page">
     <div class="card">
       <h3>➕ 添加货品</h3>
@@ -83,15 +75,32 @@
       <button onclick="addProduct()">添加货品</button>
     </div>
 
-    <!-- 新增：搜索商品 -->
     <div class="card" style="padding: 10px 16px;">
       <input type="text" id="searchInput" placeholder="🔍 输入关键字搜索货品名称" style="width:100%; padding: 10px; border:none; outline:none; background:transparent; font-size: 15px;">
     </div>
-
     <div id="productList"></div>
   </div>
 
+  <!-- 统计页面 -->
   <div id="tab-stats" class="page">
+    
+    <!-- 1. 今日小结（从销售页挪过来，放在最上方） -->
+    <div class="card" style="background: #eef4f8;">
+      <h3>📅 今日小结</h3>
+      <div class="grid-3">
+        <div><div class="stat-label">今日销售</div><div class="stat-num" style="font-size: 24px;" id="todayRevenue">¥0</div></div>
+        <div><div class="stat-label">今日成本</div><div class="stat-num" style="font-size: 24px;" id="todayCost">¥0</div></div>
+        <div><div class="stat-label">今日利润</div><div class="stat-num" style="font-size: 24px;" id="todayProfit">¥0</div></div>
+      </div>
+    </div>
+
+    <!-- 2. 历史每日小结列表 -->
+    <div class="card">
+      <h3>📆 历史每日小结</h3>
+      <div id="dailySummaryList" style="max-height: 250px; overflow-y: auto;"></div>
+    </div>
+
+    <!-- 3. 总统计概览 -->
     <div class="card">
       <h3>📈 统计概览</h3>
       <div class="grid-3">
@@ -103,6 +112,7 @@
       <button class="secondary" onclick="importDataPrompt()" style="margin-left:8px;">📥 导入备份</button>
       <button class="danger" onclick="clearAllData()" style="margin-left:8px;">🗑 清空数据</button>
     </div>
+    
     <div class="card">
       <h3>📦 按货品统计</h3>
       <div id="productStats"></div>
@@ -117,6 +127,9 @@
 
   <script>
     const STORAGE_KEY = 'sales_workbench_data';
+    // 新增：用于保存每日小结的独立 Key
+    const DAILY_SUMMARY_KEY = 'daily_summaries_workbench';
+
     function loadData() {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -132,7 +145,7 @@
       renderProducts();
       renderSalesForm();
       renderSalesList();
-      renderStats();
+      renderStats(); // 这里会一并处理每日小结的更新和渲染
     }
 
     function switchTab(tab) {
@@ -145,10 +158,9 @@
       if (tab === 'stats') renderStats();
     }
 
-    // 新增：监听搜索框输入，实现实时筛选
     document.getElementById('searchInput').addEventListener('input', renderProducts);
 
-    // 货品管理（增加图片支持）
+    // 货品管理
     function addProduct() {
       const name = document.getElementById('prodName').value.trim();
       const purchase = parseFloat(document.getElementById('prodPurchase').value);
@@ -174,7 +186,7 @@
         document.getElementById('prodStock').value = '';
         document.getElementById('prodImageUrl').value = '';
         fileInput.value = ''; 
-        renderAll(); // 添加完重新渲染会顺便带上搜索条件
+        renderAll(); 
       };
 
       if (file) {
@@ -206,16 +218,13 @@
 
     function renderProducts() {
       const container = document.getElementById('productList');
-      // 1. 获取搜索框的关键字
       const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
       
-      // 2. 根据关键字过滤商品
       let filteredProducts = appData.products;
       if (keyword) {
         filteredProducts = filteredProducts.filter(p => p.name.toLowerCase().includes(keyword));
       }
 
-      // 3. 渲染结果
       if (!filteredProducts.length) {
         container.innerHTML = `<div class="card" style="text-align:center;color:#5f6b7a;padding:20px;">${keyword ? '未找到匹配 "' + keyword + '" 的货品' : '暂无货品，请添加'}</div>`;
         return;
@@ -295,17 +304,6 @@
 
     function renderSalesList() {
       const container = document.getElementById('saleList');
-
-      const today = new Date().toISOString().slice(0, 10);
-      const todaySales = appData.sales.filter(s => s.date.startsWith(today));
-      const todayRevenue = todaySales.reduce((sum, s) => sum + s.totalRevenue, 0);
-      const todayCost = todaySales.reduce((sum, s) => sum + (s.costPrice * s.quantity), 0);
-      const todayProfit = todaySales.reduce((sum, s) => sum + s.profit, 0);
-      
-      document.getElementById('todayRevenue').innerText = '¥' + todayRevenue.toFixed(2);
-      document.getElementById('todayCost').innerText = '¥' + todayCost.toFixed(2);
-      document.getElementById('todayProfit').innerText = '¥' + todayProfit.toFixed(2);
-
       const recent = appData.sales.slice().reverse().slice(0, 20);
       if (!recent.length) {
         container.innerHTML = '<div style="color:#5f6b7a; text-align:center;">暂无销售记录</div>';
@@ -320,8 +318,26 @@
       `).join('');
     }
 
-    // 统计
+    // 统计、日结处理
     function renderStats() {
+      // 1. 计算今日数据并展示
+      const today = new Date().toISOString().slice(0, 10);
+      const todaySales = appData.sales.filter(s => s.date.startsWith(today));
+      const todayRevenue = todaySales.reduce((sum, s) => sum + s.totalRevenue, 0);
+      const todayCost = todaySales.reduce((sum, s) => sum + (s.costPrice * s.quantity), 0);
+      const todayProfit = todaySales.reduce((sum, s) => sum + s.profit, 0);
+      
+      document.getElementById('todayRevenue').innerText = '¥' + todayRevenue.toFixed(2);
+      document.getElementById('todayCost').innerText = '¥' + todayCost.toFixed(2);
+      document.getElementById('todayProfit').innerText = '¥' + todayProfit.toFixed(2);
+
+      // 2. 保存并更新每日小结历史列表
+      updateDailySummary(today, todayRevenue, todayCost, todayProfit);
+
+      // 3. 渲染历史每日小结列表
+      renderDailySummaryList();
+
+      // 4. 渲染总统计概览
       const totalRevenue = appData.sales.reduce((sum, s) => sum + s.totalRevenue, 0);
       const totalCost = appData.sales.reduce((sum, s) => sum + (s.costPrice * s.quantity), 0);
       const totalProfit = appData.sales.reduce((sum, s) => sum + s.profit, 0);
@@ -347,6 +363,45 @@
         <div class="product-item">
           <div class="product-info"><strong>${name}</strong><div>销量 ${s.qty} | 销售额 ¥${s.revenue.toFixed(2)}</div></div>
           <div style="font-weight:bold;color:#0a2540;">利润 ¥${s.profit.toFixed(2)}</div>
+        </div>
+      `).join('');
+    }
+
+    // 保存历史每日小结
+    function updateDailySummary(today, revenue, cost, profit) {
+      let summaries = JSON.parse(localStorage.getItem(DAILY_SUMMARY_KEY) || '[]');
+      const existingIndex = summaries.findIndex(item => item.date === today);
+      
+      const newRecord = { date: today, revenue, cost, profit };
+      if (existingIndex !== -1) {
+        summaries[existingIndex] = newRecord; // 更新当日记录
+      } else {
+        summaries.push(newRecord); // 新增当日记录
+      }
+      localStorage.setItem(DAILY_SUMMARY_KEY, JSON.stringify(summaries));
+    }
+
+    // 渲染历史每日小结列表
+    function renderDailySummaryList() {
+      const container = document.getElementById('dailySummaryList');
+      let summaries = JSON.parse(localStorage.getItem(DAILY_SUMMARY_KEY) || '[]');
+      
+      if (summaries.length === 0) {
+        container.innerHTML = '<div style="color:#5f6b7a; text-align:center; padding:10px;">暂无每日小结数据</div>';
+        return;
+      }
+
+      // 按照时间倒序排列（最新在前）
+      summaries.sort((a, b) => b.date.localeCompare(a.date));
+
+      container.innerHTML = summaries.map(s => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding: 8px 0; border-bottom: 1px solid #edf2f8; font-size:14px;">
+          <div style="font-weight:500;">${s.date}</div>
+          <div style="display:flex; gap:12px; color:#1e2b3c;">
+            <span>销: ¥${s.revenue.toFixed(2)}</span>
+            <span style="color:#5f6b7a;">成: ¥${s.cost.toFixed(2)}</span>
+            <span style="color:#0a2540; font-weight:bold;">利: ¥${s.profit.toFixed(2)}</span>
+          </div>
         </div>
       `).join('');
     }
@@ -377,8 +432,10 @@
               if (confirm('导入将覆盖当前数据，确定继续吗？')) {
                 appData = data;
                 saveData(appData);
+                // 导入主数据后，自动重置每日小结（以防数据错乱）
+                localStorage.removeItem(DAILY_SUMMARY_KEY);
                 renderAll();
-                alert('数据导入成功');
+                alert('数据导入成功！请刷新查看统计页面重建日结。');
               }
             } else {
               alert('文件格式不正确');
@@ -394,6 +451,7 @@
       if (confirm('⚠️ 确定清空所有货品和销售记录？此操作不可恢复，建议先导出备份。')) {
         appData = { products: [], sales: [] };
         saveData(appData);
+        localStorage.removeItem(DAILY_SUMMARY_KEY); // 一并清空历史日结
         renderAll();
       }
     }
