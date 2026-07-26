@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="销售工作台">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>📊</text></svg>">
+  <title>销售工作台</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f2f5f9; color: #1e2b3c; padding-bottom: 70px; }
+    .header { background: #0a2540; color: white; padding: 16px 20px; font-size: 20px; font-weight: bold; position: sticky; top: 0; z-index: 10; }
+    .tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: white; border-top: 1px solid #e0e6ed; z-index: 10; }
+    .tab { flex: 1; text-align: center; padding: 12px 8px; font-size: 14px; color: #5f6b7a; transition: 0.2s; cursor: pointer; }
+    .tab.active { color: #0a2540; font-weight: 600; border-bottom: 3px solid #0a2540; background: #f8fafd; }
+    .page { display: none; padding: 16px; }
+    .page.active { display: block; }
+    .card { background: white; border-radius: 14px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+    .card h3 { margin-bottom: 12px; font-size: 18px; color: #0a2540; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+    .row input, .row select { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #dce1e8; border-radius: 10px; font-size: 15px; background: #f9fbfd; }
+    button { background: #0a2540; color: white; border: none; border-radius: 10px; padding: 10px 16px; font-size: 15px; cursor: pointer; transition: 0.2s; }
+    button.secondary { background: #e7ecf2; color: #1e2b3c; }
+    button.danger { background: #d1453b; }
+    .product-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #edf2f8; flex-wrap: wrap; gap: 8px; }
+    .product-info strong { font-size: 17px; }
+    .product-info div { font-size: 14px; color: #5f6b7a; margin-top: 2px; }
+    .stock-badge { background: #e6f0fa; color: #0a2540; padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+    .sale-record { padding: 10px 0; border-bottom: 1px solid #edf2f8; font-size: 14px; }
+    .stat-num { font-size: 32px; font-weight: bold; color: #0a2540; }
+    .stat-label { font-size: 14px; color: #5f6b7a; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 18px; }
+  </style>
+</head>
+<body>
+  <div class="header">📊 销售工作台</div>
+
+  <div id="tab-products" class="page active">
+    <div class="card">
+      <h3>➕ 添加货品</h3>
+      <div class="row">
+        <input type="text" id="prodName" placeholder="货品名称">
+        <input type="number" id="prodPurchase" placeholder="进价" step="0.01">
+        <input type="number" id="prodSelling" placeholder="售价" step="0.01">
+        <input type="number" id="prodStock" placeholder="初始库存" step="1">
+      </div>
+      <button onclick="addProduct()">添加货品</button>
+    </div>
+    <div id="productList"></div>
+  </div>
+
+  <div id="tab-sales" class="page">
+    <div class="card">
+      <h3>🧾 销售记账</h3>
+      <div class="row">
+        <select id="saleProduct"><option value="">-- 选择货品 --</option></select>
+        <input type="number" id="saleQty" placeholder="数量" min="1" value="1">
+      </div>
+      <div id="salePreview" style="margin:8px 0; font-size:14px; color:#5f6b7a;"></div>
+      <button onclick="recordSale()">确认销售</button>
+    </div>
+    <div class="card">
+      <h3>📋 最近销售记录</h3>
+      <div id="saleList"></div>
+    </div>
+  </div>
+
+  <div id="tab-stats" class="page">
+    <div class="card">
+      <h3>📈 统计概览</h3>
+      <div class="grid-3">
+        <div><div class="stat-num" id="totalRevenue">0</div><div class="stat-label">总销售额</div></div>
+        <div><div class="stat-num" id="totalCost">0</div><div class="stat-label">总成本</div></div>
+        <div><div class="stat-num" id="totalProfit">0</div><div class="stat-label">总利润</div></div>
+      </div>
+      <button class="secondary" onclick="exportData()">📤 导出备份</button>
+      <button class="secondary" onclick="importDataPrompt()" style="margin-left:8px;">📥 导入备份</button>
+      <button class="danger" onclick="clearAllData()" style="margin-left:8px;">🗑 清空数据</button>
+    </div>
+    <div class="card">
+      <h3>📦 按货品统计</h3>
+      <div id="productStats"></div>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('products')">📦 货品</div>
+    <div class="tab" onclick="switchTab('sales')">🧾 销售</div>
+    <div class="tab" onclick="switchTab('stats')">📊 统计</div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'sales_workbench_data';
+    function loadData() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        try { return JSON.parse(raw); } catch(e) { return { products: [], sales: [] }; }
+      }
+      return { products: [], sales: [] };
+    }
+    function saveData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+    let appData = loadData();
+
+    function renderAll() {
+      renderProducts();
+      renderSalesForm();
+      renderSalesList();
+      renderStats();
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-'+tab).classList.add('active');
+      document.querySelector(`.tab-bar .tab:nth-${tab === 'products' ? '1' : tab === 'sales' ? '2' : '3'}`).classList.add('active');
+      if (tab === 'sales') renderSalesForm();
+      if (tab === 'stats') renderStats();
+    }
+
+    // 货品管理
+    function addProduct() {
+      const name = document.getElementById('prodName').value.trim();
+      const purchase = parseFloat(document.getElementById('prodPurchase').value);
+      const selling = parseFloat(document.getElementById('prodSelling').value);
+      const stock = parseInt(document.getElementById('prodStock').value) || 0;
+      if (!name || isNaN(purchase) || isNaN(selling) || stock < 0) return alert('请填写完整信息');
+      const newProduct = {
+        id: Date.now().toString(),
+        name, purchasePrice: purchase, sellingPrice: selling, stock
+      };
+      appData.products.push(newProduct);
+      saveData(appData);
+      document.getElementById('prodName').value = '';
+      document.getElementById('prodPurchase').value = '';
+      document.getElementById('prodSelling').value = '';
+      document.getElementById('prodStock').value = '';
+      renderAll();
+    }
+
+    function deleteProduct(id) {
+      if (!confirm('确定删除该货品？销售记录会保留但不再关联。')) return;
+      appData.products = appData.products.filter(p => p.id !== id);
+      saveData(appData);
+      renderAll();
+    }
+
+    function addStock(id) {
+      const qty = prompt('入库数量：', '1');
+      if (!qty || isNaN(qty) || parseInt(qty) <= 0) return;
+      const product = appData.products.find(p => p.id === id);
+      if (product) {
+        product.stock += parseInt(qty);
+        saveData(appData);
+        renderAll();
+      }
+    }
+
+    function renderProducts() {
+      const container = document.getElementById('productList');
+      if (!appData.products.length) {
+        container.innerHTML = '<div class="card" style="text-align:center;color:#5f6b7a;">暂无货品，请添加</div>';
+        return;
+      }
+      container.innerHTML = appData.products.map(p => `
+        <div class="card">
+          <div class="product-item">
+            <div class="product-info">
+              <strong>${p.name}</strong>
+              <div>进价 ¥${p.purchasePrice.toFixed(2)} | 售价 ¥${p.sellingPrice.toFixed(2)}</div>
+            </div>
+            <span class="stock-badge">库存 ${p.stock}</span>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button class="secondary" onclick="addStock('${p.id}')">📥 入库</button>
+            <button class="danger" onclick="deleteProduct('${p.id}')">🗑 删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 销售记账
+    function renderSalesForm() {
+      const select = document.getElementById('saleProduct');
+      select.innerHTML = '<option value="">-- 选择货品 --</option>' + 
+        appData.products.map(p => `<option value="${p.id}">${p.name} (库存${p.stock})</option>`).join('');
+      document.getElementById('saleQty').value = 1;
+      document.getElementById('salePreview').innerText = '';
+    }
+
+    document.getElementById('saleProduct').addEventListener('change', updateSalePreview);
+    document.getElementById('saleQty').addEventListener('input', updateSalePreview);
+    function updateSalePreview() {
+      const prodId = document.getElementById('saleProduct').value;
+      const qty = parseInt(document.getElementById('saleQty').value) || 1;
+      const product = appData.products.find(p => p.id === prodId);
+      const preview = document.getElementById('salePreview');
+      if (product) {
+        const totalRevenue = qty * product.sellingPrice;
+        const profit = qty * (product.sellingPrice - product.purchasePrice);
+        preview.innerText = `销售额: ¥${totalRevenue.toFixed(2)} | 利润: ¥${profit.toFixed(2)} | 当前库存: ${product.stock}`;
+      } else {
+        preview.innerText = '';
+      }
+    }
+
+    function recordSale() {
+      const prodId = document.getElementById('saleProduct').value;
+      const qty = parseInt(document.getElementById('saleQty').value);
+      if (!prodId || isNaN(qty) || qty <= 0) return alert('请选择货品并输入有效数量');
+      const product = appData.products.find(p => p.id === prodId);
+      if (!product) return alert('货品不存在');
+      if (product.stock < qty) return alert('库存不足');
+      const saleRecord = {
+        id: Date.now().toString(),
+        date: new Date().toISOString(),
+        productId: product.id,
+        productName: product.name,
+        quantity: qty,
+        sellingPrice: product.sellingPrice,
+        costPrice: product.purchasePrice,
+        totalRevenue: qty * product.sellingPrice,
+        profit: qty * (product.sellingPrice - product.purchasePrice)
+      };
+      product.stock -= qty;
+      appData.sales.push(saleRecord);
+      saveData(appData);
+      renderAll();
+    }
+
+    function renderSalesList() {
+      const container = document.getElementById('saleList');
+      const recent = appData.sales.slice().reverse().slice(0, 20);
+      if (!recent.length) {
+        container.innerHTML = '<div style="color:#5f6b7a; text-align:center;">暂无销售记录</div>';
+        return;
+      }
+      container.innerHTML = recent.map(s => `
+        <div class="sale-record">
+          <strong>${s.productName}</strong> ×${s.quantity} 
+          <span style="float:right;">销售额 ¥${s.totalRevenue.toFixed(2)}</span>
+          <div style="color:#5f6b7a;">利润 ¥${s.profit.toFixed(2)} · ${new Date(s.date).toLocaleString('zh-CN')}</div>
+        </div>
+      `).join('');
+    }
+
+    // 统计
+    function renderStats() {
+      const totalRevenue = appData.sales.reduce((sum, s) => sum + s.totalRevenue, 0);
+      const totalCost = appData.sales.reduce((sum, s) => sum + (s.costPrice * s.quantity), 0);
+      const totalProfit = appData.sales.reduce((sum, s) => sum + s.profit, 0);
+      document.getElementById('totalRevenue').innerText = '¥' + totalRevenue.toFixed(2);
+      document.getElementById('totalCost').innerText = '¥' + totalCost.toFixed(2);
+      document.getElementById('totalProfit').innerText = '¥' + totalProfit.toFixed(2);
+
+      const productStats = {};
+      appData.sales.forEach(s => {
+        if (!productStats[s.productName]) {
+          productStats[s.productName] = { qty: 0, revenue: 0, profit: 0 };
+        }
+        productStats[s.productName].qty += s.quantity;
+        productStats[s.productName].revenue += s.totalRevenue;
+        productStats[s.productName].profit += s.profit;
+      });
+      const container = document.getElementById('productStats');
+      if (!Object.keys(productStats).length) {
+        container.innerHTML = '<div style="color:#5f6b7a;">暂无数据</div>';
+        return;
+      }
+      container.innerHTML = Object.entries(productStats).map(([name, s]) => `
+        <div class="product-item">
+          <div class="product-info"><strong>${name}</strong><div>销量 ${s.qty} | 销售额 ¥${s.revenue.toFixed(2)}</div></div>
+          <div style="font-weight:bold;color:#0a2540;">利润 ¥${s.profit.toFixed(2)}</div>
+        </div>
+      `).join('');
+    }
+
+    // 数据备份
+    function exportData() {
+      const blob = new Blob([JSON.stringify(appData, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sales_backup_' + new Date().toISOString().slice(0,10) + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function importDataPrompt() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const data = JSON.parse(ev.target.result);
+            if (data.products && data.sales) {
+              if (confirm('导入将覆盖当前数据，确定继续吗？')) {
+                appData = data;
+                saveData(appData);
+                renderAll();
+                alert('数据导入成功');
+              }
+            } else {
+              alert('文件格式不正确');
+            }
+          } catch (ex) { alert('解析失败'); }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+
+    function clearAllData() {
+      if (confirm('⚠️ 确定清空所有货品和销售记录？此操作不可恢复，建议先导出备份。')) {
+        appData = { products: [], sales: [] };
+        saveData(appData);
+        renderAll();
+      }
+    }
+
+    // 初始渲染
+    renderAll();
+  </script>
+</body>
+</html>
