@@ -25,6 +25,8 @@
     button { background: #0a2540; color: white; border: none; border-radius: 10px; padding: 10px 16px; font-size: 15px; cursor: pointer; transition: 0.2s; }
     button.secondary { background: #e7ecf2; color: #1e2b3c; }
     button.danger { background: #d1453b; }
+    button.toggle-btn { background: transparent; color: #0a2540; border: 1px solid #dce1e8; padding: 6px 12px; margin-right: 8px; margin-bottom: 12px; }
+    button.toggle-btn.active { background: #0a2540; color: white; border-color: #0a2540; }
     .product-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 0 0 8px 0; flex-wrap: wrap; gap: 8px; }
     .product-info strong { font-size: 17px; }
     .product-info div { font-size: 14px; color: #5f6b7a; margin-top: 2px; }
@@ -34,20 +36,44 @@
     .stat-label { font-size: 14px; color: #5f6b7a; }
     .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 12px; }
     .tip { font-size: 13px; color: #8a9ca5; margin-top: 6px; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
-  <!-- 修改标题 -->
   <div class="header">💎 One77-饰品</div>
 
   <!-- 首页为销售页面 -->
   <div id="tab-sales" class="page active">
     <div class="card">
       <h3>🧾 销售记账</h3>
-      <div class="row">
-        <select id="saleProduct"><option value="">-- 选择货品 --</option></select>
-        <input type="number" id="saleQty" placeholder="数量" min="1" value="1">
+      
+      <!-- 切换模式按钮 -->
+      <div style="margin-bottom: 12px;">
+        <button class="toggle-btn active" id="btnStockMode" onclick="switchSalesMode('stock')">📦 库存商品</button>
+        <button class="toggle-btn" id="btnCustomMode" onclick="switchSalesMode('custom')">✏️ 自定义商品</button>
       </div>
+
+      <!-- 模式 1：库存商品 -->
+      <div id="stockSalesForm">
+        <div class="row">
+          <select id="saleProduct"><option value="">-- 选择货品 --</option></select>
+          <input type="number" id="saleQty" placeholder="数量" min="1" value="1">
+        </div>
+      </div>
+
+      <!-- 模式 2：自定义商品 -->
+      <div id="customSalesForm" class="hidden">
+        <div class="row">
+          <input type="text" id="customProdName" placeholder="货品名称" style="flex:2;">
+        </div>
+        <div class="row">
+          <input type="number" id="customPurchase" placeholder="进价" step="0.01" style="flex:1;">
+          <input type="number" id="customSelling" placeholder="售价" step="0.01" style="flex:1;">
+          <input type="number" id="customQty" placeholder="数量" min="1" value="1" style="flex:1;">
+        </div>
+      </div>
+
+      <!-- 预览与提交 -->
       <div id="salePreview" style="margin:8px 0; font-size:14px; color:#5f6b7a;"></div>
       <button onclick="recordSale()">确认销售</button>
     </div>
@@ -83,8 +109,6 @@
 
   <!-- 统计页面 -->
   <div id="tab-stats" class="page">
-    
-    <!-- 1. 今日小结（从销售页挪过来，放在最上方） -->
     <div class="card" style="background: #eef4f8;">
       <h3>📅 今日小结</h3>
       <div class="grid-3">
@@ -94,13 +118,11 @@
       </div>
     </div>
 
-    <!-- 2. 历史每日小结列表 -->
     <div class="card">
       <h3>📆 历史每日小结</h3>
       <div id="dailySummaryList" style="max-height: 250px; overflow-y: auto;"></div>
     </div>
 
-    <!-- 3. 总统计概览 -->
     <div class="card">
       <h3>📈 统计概览</h3>
       <div class="grid-3">
@@ -127,8 +149,9 @@
 
   <script>
     const STORAGE_KEY = 'sales_workbench_data';
-    // 新增：用于保存每日小结的独立 Key
     const DAILY_SUMMARY_KEY = 'daily_summaries_workbench';
+
+    let currentSalesMode = 'stock'; // 'stock' 或 'custom'
 
     function loadData() {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -145,7 +168,7 @@
       renderProducts();
       renderSalesForm();
       renderSalesList();
-      renderStats(); // 这里会一并处理每日小结的更新和渲染
+      renderStats();
     }
 
     function switchTab(tab) {
@@ -154,8 +177,33 @@
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
 
-      if (tab === 'sales') renderSalesForm();
+      if (tab === 'sales') {
+        renderSalesForm();
+        updateSalePreview();
+      }
       if (tab === 'stats') renderStats();
+    }
+
+    // 切换销售模式函数
+    function switchSalesMode(mode) {
+      currentSalesMode = mode;
+      const stockForm = document.getElementById('stockSalesForm');
+      const customForm = document.getElementById('customSalesForm');
+      const btnStock = document.getElementById('btnStockMode');
+      const btnCustom = document.getElementById('btnCustomMode');
+
+      if (mode === 'stock') {
+        stockForm.classList.remove('hidden');
+        customForm.classList.add('hidden');
+        btnStock.classList.add('active');
+        btnCustom.classList.remove('active');
+      } else {
+        stockForm.classList.add('hidden');
+        customForm.classList.remove('hidden');
+        btnStock.classList.remove('active');
+        btnCustom.classList.add('active');
+      }
+      updateSalePreview();
     }
 
     document.getElementById('searchInput').addEventListener('input', renderProducts);
@@ -254,50 +302,112 @@
 
     // 销售记账
     function renderSalesForm() {
+      // 不管是否隐藏，都要刷新库存下拉列表
       const select = document.getElementById('saleProduct');
       select.innerHTML = '<option value="">-- 选择货品 --</option>' + 
         appData.products.map(p => `<option value="${p.id}">${p.name} (库存${p.stock})</option>`).join('');
-      document.getElementById('saleQty').value = 1;
-      document.getElementById('salePreview').innerText = '';
+      
+      // 如果是自定义模式且输入框为空，赋默认值
+      if (currentSalesMode === 'custom') {
+        document.getElementById('customQty').value = 1;
+      } else {
+        document.getElementById('saleQty').value = 1;
+      }
+      updateSalePreview();
     }
 
+    // 监听输入变化，实时更新预览
     document.getElementById('saleProduct').addEventListener('change', updateSalePreview);
     document.getElementById('saleQty').addEventListener('input', updateSalePreview);
+    document.getElementById('customProdName').addEventListener('input', updateSalePreview);
+    document.getElementById('customPurchase').addEventListener('input', updateSalePreview);
+    document.getElementById('customSelling').addEventListener('input', updateSalePreview);
+    document.getElementById('customQty').addEventListener('input', updateSalePreview);
+
     function updateSalePreview() {
-      const prodId = document.getElementById('saleProduct').value;
-      const qty = parseInt(document.getElementById('saleQty').value) || 1;
-      const product = appData.products.find(p => p.id === prodId);
       const preview = document.getElementById('salePreview');
-      if (product) {
-        const totalRevenue = qty * product.sellingPrice;
-        const profit = qty * (product.sellingPrice - product.purchasePrice);
-        preview.innerText = `销售额: ¥${totalRevenue.toFixed(2)} | 利润: ¥${profit.toFixed(2)} | 当前库存: ${product.stock}`;
+      
+      if (currentSalesMode === 'stock') {
+        const prodId = document.getElementById('saleProduct').value;
+        const qty = parseInt(document.getElementById('saleQty').value) || 1;
+        const product = appData.products.find(p => p.id === prodId);
+        if (product) {
+          const totalRevenue = qty * product.sellingPrice;
+          const profit = qty * (product.sellingPrice - product.purchasePrice);
+          preview.innerText = `销售额: ¥${totalRevenue.toFixed(2)} | 利润: ¥${profit.toFixed(2)} | 当前库存: ${product.stock}`;
+        } else {
+          preview.innerText = '';
+        }
       } else {
-        preview.innerText = '';
+        const name = document.getElementById('customProdName').value.trim();
+        const purchase = parseFloat(document.getElementById('customPurchase').value);
+        const selling = parseFloat(document.getElementById('customSelling').value);
+        const qty = parseInt(document.getElementById('customQty').value) || 1;
+        if (name && !isNaN(purchase) && !isNaN(selling)) {
+          const totalRevenue = qty * selling;
+          const profit = qty * (selling - purchase);
+          preview.innerText = `自定义: ${name} | 销售额: ¥${totalRevenue.toFixed(2)} | 利润: ¥${profit.toFixed(2)}`;
+        } else {
+          preview.innerText = '请完整填写自定义货品的名称、进价和售价';
+        }
       }
     }
 
     function recordSale() {
-      const prodId = document.getElementById('saleProduct').value;
-      const qty = parseInt(document.getElementById('saleQty').value);
-      if (!prodId || isNaN(qty) || qty <= 0) return alert('请选择货品并输入有效数量');
-      const product = appData.products.find(p => p.id === prodId);
-      if (!product) return alert('货品不存在');
-      if (product.stock < qty) return alert('库存不足');
-      
-      const saleRecord = {
-        id: Date.now().toString(),
-        date: new Date().toISOString(),
-        productId: product.id,
-        productName: product.name,
-        quantity: qty,
-        sellingPrice: product.sellingPrice,
-        costPrice: product.purchasePrice,
-        totalRevenue: qty * product.sellingPrice,
-        profit: qty * (product.sellingPrice - product.purchasePrice)
-      };
-      product.stock -= qty;
-      appData.sales.push(saleRecord);
+      if (currentSalesMode === 'stock') {
+        // --- 现有库存模式 ---
+        const prodId = document.getElementById('saleProduct').value;
+        const qty = parseInt(document.getElementById('saleQty').value);
+        if (!prodId || isNaN(qty) || qty <= 0) return alert('请选择货品并输入有效数量');
+        const product = appData.products.find(p => p.id === prodId);
+        if (!product) return alert('货品不存在');
+        if (product.stock < qty) return alert('库存不足');
+        
+        const saleRecord = {
+          id: Date.now().toString(),
+          date: new Date().toISOString(),
+          productId: product.id,
+          productName: product.name,
+          quantity: qty,
+          sellingPrice: product.sellingPrice,
+          costPrice: product.purchasePrice,
+          totalRevenue: qty * product.sellingPrice,
+          profit: qty * (product.sellingPrice - product.purchasePrice)
+        };
+        product.stock -= qty;
+        appData.sales.push(saleRecord);
+        
+      } else {
+        // --- 自定义模式 ---
+        const name = document.getElementById('customProdName').value.trim();
+        const purchase = parseFloat(document.getElementById('customPurchase').value);
+        const selling = parseFloat(document.getElementById('customSelling').value);
+        const qty = parseInt(document.getElementById('customQty').value);
+
+        if (!name || isNaN(purchase) || isNaN(selling) || isNaN(qty) || qty <= 0) {
+          return alert('请完整填写自定义货品信息：名称、进价、售价、数量');
+        }
+
+        const saleRecord = {
+          id: Date.now().toString(),
+          date: new Date().toISOString(),
+          productId: 'custom_' + Date.now().toString(), // 标识为自定义
+          productName: name,
+          quantity: qty,
+          sellingPrice: selling,
+          costPrice: purchase,
+          totalRevenue: qty * selling,
+          profit: qty * (selling - purchase)
+        };
+        appData.sales.push(saleRecord);
+
+        // 清空自定义表单，方便连续记录
+        document.getElementById('customProdName').value = '';
+        document.getElementById('customPurchase').value = '';
+        document.getElementById('customSelling').value = '';
+        document.getElementById('customQty').value = 1;
+      }
+
       saveData(appData);
       renderAll();
     }
@@ -432,7 +542,6 @@
               if (confirm('导入将覆盖当前数据，确定继续吗？')) {
                 appData = data;
                 saveData(appData);
-                // 导入主数据后，自动重置每日小结（以防数据错乱）
                 localStorage.removeItem(DAILY_SUMMARY_KEY);
                 renderAll();
                 alert('数据导入成功！请刷新查看统计页面重建日结。');
@@ -451,7 +560,7 @@
       if (confirm('⚠️ 确定清空所有货品和销售记录？此操作不可恢复，建议先导出备份。')) {
         appData = { products: [], sales: [] };
         saveData(appData);
-        localStorage.removeItem(DAILY_SUMMARY_KEY); // 一并清空历史日结
+        localStorage.removeItem(DAILY_SUMMARY_KEY);
         renderAll();
       }
     }
